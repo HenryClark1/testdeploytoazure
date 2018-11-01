@@ -1,113 +1,123 @@
 {
-  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
-  "contentVersion": "1.0.0.0",
-  "parameters": {
-    "siteName": {
-      "type": "string",
-      "metadata": {
-        "description": "The name of the web app that you wish to create."
-      }
-    },
-    "hostingPlanName": {
-      "type": "string",
-      "metadata": {
-        "description": "The name of the App Service plan to use for hosting the web app."
-      }
-    },
-    "sku": {
-      "type": "string",
-      "allowedValues": [
-        "F1",
-        "D1",
-        "B1",
-        "B2",
-        "B3",
-        "S1",
-        "S2",
-        "S3",
-        "P1",
-        "P2",
-        "P3",
-        "P4"
-      ],
-      "defaultValue": "F1",
-      "metadata": {
-        "description": "The pricing tier for the hosting plan."
-      }
-    },
-    "workerSize": {
-      "type": "string",
-      "allowedValues": [
-        "0",
-        "1",
-        "2"
-      ],
-      "defaultValue": "0",
-      "metadata": {
-        "description": "The instance size of the hosting plan (small, medium, or large)."
-      }
-    },
-    "repoURL": {
-      "type": "string",
-      "metadata": {
-        "description": "The URL for the GitHub repository that contains the project to deploy."
-      }
-    },
-    "branch": {
-      "type": "string",
-      "defaultValue": "master",
-      "metadata": {
-        "description": "The branch of the GitHub repository to use."
-      }
-    },
-    "location": {
-      "type": "string",
-      "defaultValue": "[resourceGroup().location]",
-      "metadata": {
-        "description": "Location for all resources."
-      }
-    }
-  },
-  "resources": [
-    {
-      "apiVersion": "2015-08-01",
-      "name": "[parameters('hostingPlanName')]",
-      "type": "Microsoft.Web/serverfarms",
-      "location": "[parameters('location')]",
-      "sku": {
-        "name": "[parameters('sku')]",
-        "capacity": "[parameters('workerSize')]"
-      },
-      "properties": {
-        "name": "[parameters('hostingPlanName')]"
-      }
-    },
-    {
-      "apiVersion": "2015-08-01",
-      "name": "[parameters('siteName')]",
-      "type": "Microsoft.Web/sites",
-      "location": "[parameters('location')]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]"
-      ],
-      "properties": {
-        "serverFarmId": "[parameters('hostingPlanName')]"
-      },
-      "resources": [
-        {
-          "apiVersion": "2015-08-01",
-          "name": "web",
-          "type": "sourcecontrols",
-          "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]"
-          ],
-          "properties": {
-            "RepoUrl": "[parameters('repoURL')]",
-            "branch": "[parameters('branch')]",
-            "IsManualIntegration": true
-          }
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "tags": {
+            "type": "object",
+            "metadata": {
+                "description": "Tags to apply to created resources"
+            }
+        },
+        "appServicePlans": {
+            "type": "array",
+            "metadata": {
+                "description": "Array of Application Service Plans"
+            }
+        },
+        "webApps": {
+            "type": "array",
+            "metadata": {
+                "description": "Array of Web Apps"
+            }
         }
-      ]
-    }
-  ]
+    },
+    "variables": {
+        "DummyArray": []
+    },
+    "resources": [
+        {
+            "apiVersion": "2015-08-01",
+            "name": "[parameters('appServicePlans')[copyIndex('appServicePlansLoop')].Name]",
+            "type": "Microsoft.Web/serverfarms",
+            "location": "[parameters('appServicePlans')[copyIndex('appServicePlansLoop')].location]",
+            "Tags": {
+                "ChangeNumber": "[parameters('appServicePlans')[copyIndex('appServicePlansLoop')].ChangeNumber]",
+                "BillingStatus": "[parameters('tags').BillingStatus]",
+                "ProjectNumber": "[parameters('tags').ProjectNumber]",
+                "BuiltBy": "[parameters('appServicePlans')[copyIndex('appServicePlansLoop')].BuiltBy]",
+                "BusinessSystem": "[parameters('tags').BusinessSystem]"
+            },
+            "copy": {
+                "name": "appServicePlansLoop",
+                "count": "[length(parameters('appServicePlans'))]"
+            },
+            "sku": {
+                "name": "[parameters('appServicePlans')[copyIndex('appServicePlansLoop')].Tier]",
+                "capacity": "[parameters('appServicePlans')[copyIndex('appServicePlansLoop')].workerSize]"
+            },
+            "properties": {
+                "name": "[parameters('appServicePlans')[copyIndex('appServicePlansLoop')].Name]"
+            }
+        },
+        {
+            "name": "[parameters('webApps')[copyIndex('WebAppLoop')].name]",
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2016-08-01",
+            "location": "[parameters('webApps')[copyIndex('WebAppLoop')].location]",
+            "tags": {
+                "ChangeNumber": "[parameters('webApps')[copyIndex('WebAppLoop')].ChangeNumber]",
+                "BillingStatus": "[parameters('tags').BillingStatus]",
+                "ProjectNumber": "[parameters('tags').ProjectNumber]",
+                "BuiltBy": "[parameters('webApps')[copyIndex('WebAppLoop')].BuiltBy]",
+                "BusinessSystem": "[parameters('tags').BusinessSystem]"
+            },
+            "dependsOn": [
+                "appServicePlansLoop"
+            ],
+            "copy": {
+                "name": "WebAppLoop",
+                "count": "[length(parameters('webApps'))]"
+            },
+            "properties": {
+                "enabled": true,
+                "serverFarmId": "[parameters('webApps')[copyIndex('WebAppLoop')].AppServicePlanName]",
+                "reserved": false,
+                "siteConfig": {
+                    "numberOfWorkers": "[parameters('webApps')[copyIndex('WebAppLoop')].numberOfWorkers]",
+                    "defaultDocuments": [
+                        "[parameters('webApps')[copyIndex('WebAppLoop')].defaultDocument]"
+                    ],
+                    "netFrameworkVersion": "[parameters('webApps')[copyIndex('WebAppLoop')].dotNetFramework]",
+                    "phpVersion": "[parameters('webApps')[copyIndex('WebAppLoop')].phpVersion]",
+                    "pythonVersion": "[parameters('webApps')[copyIndex('WebAppLoop')].pythonVersion]",
+                    "httpLoggingEnabled": true,
+                    "logsDirectorySizeLimit": 40,
+                    "detailedErrorLoggingEnabled": true,
+                    "ipSecurityRestrictions": "[if(equals(parameters('webApps')[copyIndex('WebAppLoop')].ipSecurityRestrictionEnabled,'true'), parameters('webApps')[copyIndex('WebAppLoop')].ipSecurityRestrictions, variables('DummyArray'))]",
+                    "connectionStrings": "[if(equals(parameters('webApps')[copyIndex('WebAppLoop')].ConnectionStringEnabled,'true'), parameters('webApps')[copyIndex('WebAppLoop')].ConnectionStrings, variables('DummyArray'))]",
+                    "scmType": "None",
+                    "use32BitWorkerProcess": "[parameters('webApps')[copyIndex('WebAppLoop')].use32BitWorkerProcess]",
+                    "webSocketsEnabled": "[parameters('webApps')[copyIndex('WebAppLoop')].webSocketsEnabled]",
+                    "alwaysOn": "[parameters('webApps')[copyIndex('WebAppLoop')].alwaysOn]",
+                    "javaVersion": "[parameters('webApps')[copyIndex('WebAppLoop')].javaVersion]",
+                    "javaContainer": "[parameters('webApps')[copyIndex('WebAppLoop')].javaContainer]",
+                    "javaContainerVersion": "[parameters('webApps')[copyIndex('WebAppLoop')].javaContainerVersion]",
+                    "managedPipelineMode": "[parameters('webApps')[copyIndex('WebAppLoop')].managedPipelineMode]",
+                    "virtualApplications": [
+                        {
+                            "virtualPath": "/",
+                            "physicalPath": "[parameters('webApps')[copyIndex('WebAppLoop')].startFolder]",
+                            "preloadEnabled": false,
+                            "virtualDirectories": null
+                        }
+                    ],
+                    "limits": {
+                        "maxPercentageCpu": 80,
+                        "maxMemoryInMb": 900,
+                        "maxDiskSizeInMb": 900
+                    },
+                    "http20Enabled": false,
+                    "minTlsVersion": "1.0"
+                },
+                "scmSiteAlsoStopped": false,
+                "clientAffinityEnabled": "[parameters('webApps')[copyIndex('WebAppLoop')].clientAffinityEnabled]",
+                "clientCertEnabled": false,
+                "hostNamesDisabled": false,
+                "httpsOnly": "[parameters('webApps')[copyIndex('WebAppLoop')].httpsOnly]"
+            },
+            "identity": {
+                "type": "SystemAssigned"
+            }
+        }
+    ]
 }
